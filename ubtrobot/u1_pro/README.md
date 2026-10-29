@@ -185,3 +185,11 @@ native 后端现在先判断声音活动，再接受厂商方位事件；保持�
 本分支 feat/u1pro-sound-direction-only 仅包含听声辨位、既有麦克风修复及必要接口，不包含同事未合并的 idle_actions 卡片或其原生控制模块/注册/依赖。当前真机认可部署是 release.261029.49fb570 + perception release.261029.f959e96-jetson-jp6.1；该历史整合镜像含 idle_actions，作为原样回退保存，不代表本分支包含该卡片。本分支未部署，不替换同事真机开发。
 
 认可门限：minimum_dbfs=-65、margin_db=2.5，settle=.5s、pause hold=.8s。当前输入输出和单人估计 ASR 关联保留；真实采集窗口及头→胸补偿仍在可行性核查，未开启或宣称可用。
+
+### 头部到胸部水平补偿（实验）
+
+`frame_compensation.enabled: true` 时只读订阅 domain 2 `/mc/joint_states` 的 `neck_base_joint`，不调用运动/待机接口。初始假设正关节角是头向左，`yaw_sign: 1`，`zero_offset_deg: 0`；操作员实测相反可设 yaw_sign=-1。数据转换自弧度，要求关节消息头时间新鲜且本地接收不超过300ms，无效/过期姿态不输出冒充胸部坐标的角度。
+
+每个DOA事件到达时固定姿态快照，`angle_deg=wrap(head_angle_deg+head_yaw_deg)`，胸前为0、左正右负、后方+180。保留 `head_angle_deg`、`frame_compensation`（姿态、时戳、age、符号与偏移），`reference_frame=torso_front`。心跳只重复同一个结果，不用新的头角重算旧声源。无姿态时 angle_deg=null/no_event，head_angle_deg可作原始诊断。禁用补偿恢复原来的头部参考角。
+
+这是水平/接收时间近似补偿，不是完整三维坐标变换或已对齐采集窗口：未补偿俯仰/侧倾/近距离头胸平移，DOA模型未知延迟在快速摆头时仍会造成误差。采集窗口保持0，ASR继续走用户授权的estimated单人实验。先固定在胸前说话，比较原始角度是否随头变化、修正角度是否更接近0；若误差随摆头反向增大，先校正符号。认可B版镜像保持可回退，不操作同事idle_actions。
